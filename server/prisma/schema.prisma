@@ -33,6 +33,19 @@ enum MemberRole {
   MEMBER
 }
 
+enum CallType {
+  AUDIO
+  VIDEO
+}
+
+enum CallStatus {
+  MISSED
+  REJECTED
+  CANCELED
+  COMPLETED
+  FAILED
+}
+
 model Profile {
   id             String   @id @db.Uuid
   username       String   @unique
@@ -61,6 +74,11 @@ model Profile {
   createdConversations  Conversation[] @relation("ConversationCreator")
   conversationMembers   ConversationMember[]
   sentMessages          Message[]
+  stories               Story[]
+  storyViews            StoryView[]
+  pushSubscriptions     PushSubscription[]
+  callerCallLogs        CallLog[] @relation("CallLogCaller")
+  calleeCallLogs        CallLog[] @relation("CallLogCallee")
 
   @@map("profiles")
 }
@@ -267,4 +285,70 @@ model Message {
   @@unique([conversationId, senderId, clientId])
   @@index([conversationId, createdAt(sort: Desc)])
   @@map("messages")
+}
+
+model Story {
+  id            String      @id @default(uuid()) @db.Uuid
+  authorId      String      @map("author_id") @db.Uuid
+  mediaPublicId String      @map("media_public_id")
+  mediaUrl      String      @map("media_url")
+  mediaType     MediaType   @map("media_type")
+  width         Int?
+  height        Int?
+  durationSec   Float?      @map("duration_sec")
+  caption       String?
+  viewersCount  Int         @default(0) @map("viewers_count")
+  createdAt     DateTime    @default(now()) @map("created_at")
+  expiresAt     DateTime    @map("expires_at")
+  author        Profile     @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  views         StoryView[]
+
+  @@index([authorId, expiresAt])
+  @@index([expiresAt])
+  @@map("stories")
+}
+
+model StoryView {
+  storyId  String   @map("story_id") @db.Uuid
+  viewerId String   @map("viewer_id") @db.Uuid
+  viewedAt DateTime @default(now()) @map("viewed_at")
+  story    Story    @relation(fields: [storyId], references: [id], onDelete: Cascade)
+  viewer   Profile  @relation(fields: [viewerId], references: [id], onDelete: Cascade)
+
+  @@id([storyId, viewerId])
+  @@index([storyId, viewedAt])
+  @@map("story_views")
+}
+
+model PushSubscription {
+  id         String    @id @default(uuid()) @db.Uuid
+  userId     String    @map("user_id") @db.Uuid
+  endpoint   String    @unique
+  p256dh     String
+  auth       String
+  userAgent  String?   @map("user_agent")
+  createdAt  DateTime  @default(now()) @map("created_at")
+  lastUsedAt DateTime? @map("last_used_at")
+  user       Profile   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("push_subscriptions")
+}
+
+model CallLog {
+  id          String     @id @default(uuid()) @db.Uuid
+  callerId    String     @map("caller_id") @db.Uuid
+  calleeId    String     @map("callee_id") @db.Uuid
+  type        CallType
+  status      CallStatus
+  startedAt   DateTime   @default(now()) @map("started_at")
+  answeredAt  DateTime?  @map("answered_at")
+  endedAt     DateTime?  @map("ended_at")
+  durationSec Int?       @map("duration_sec")
+  caller      Profile    @relation("CallLogCaller", fields: [callerId], references: [id], onDelete: Cascade)
+  callee      Profile    @relation("CallLogCallee", fields: [calleeId], references: [id], onDelete: Cascade)
+
+  @@index([callerId, startedAt(sort: Desc)])
+  @@index([calleeId, startedAt(sort: Desc)])
+  @@map("call_logs")
 }

@@ -13,9 +13,14 @@ import { typeDefs, resolvers } from "./graphql/schema.js";
 import { buildContext, type AppContext } from "./graphql/context.js";
 import { initIO } from "./realtime/io.js";
 import { getIO } from "./realtime/io.js";
+import { fileURLToPath } from "node:url";
+import { dirname, join } from "node:path";
+import { configurePush, registerChatPushHook } from "./modules/push/service.js";
 
 async function start() {
   const app = express();
+  configurePush();
+  registerChatPushHook();
   const httpServer = http.createServer(app);
 
   const apollo = new ApolloServer<AppContext>({
@@ -28,6 +33,12 @@ async function start() {
 
   app.use(cors());
   app.use(express.json());
+
+  if (env.nodeEnv !== "production") {
+    const serverDir = dirname(fileURLToPath(import.meta.url));
+    app.use("/push-test", express.static(join(serverDir, "..", "public", "push-test")));
+    app.use("/call-test", express.static(join(serverDir, "..", "public", "call-test")));
+  }
 
   app.get("/health", async (_req, res) => {
     const [authCheck, postgresCheck, redisCheck] = await Promise.allSettled([

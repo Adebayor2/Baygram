@@ -27,3 +27,16 @@ export const maintenanceQueue = new Queue("maintenance", {
   connection: bullRedis,
   defaultJobOptions,
 });
+
+export const pushQueue = new Queue("push", {
+  connection: bullRedis,
+  defaultJobOptions: {
+    ...defaultJobOptions,
+    attempts: 3,
+  },
+});
+
+export const callsQueue = new Queue("calls", {
+  connection: bullRedis,
+  defaultJobOptions,
+});

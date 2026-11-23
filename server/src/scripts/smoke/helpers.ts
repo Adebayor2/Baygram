@@ -269,6 +269,17 @@ export async function resetData(): Promise<void> {
       OR: [{ recipientId: { in: ids } }, { actorId: { in: ids } }],
     },
   });
+  await prisma.story.deleteMany({
+    where: { authorId: { in: ids } },
+  });
+  await prisma.pushSubscription.deleteMany({
+    where: { userId: { in: ids } },
+  });
+  await prisma.callLog.deleteMany({
+    where: {
+      OR: [{ callerId: { in: ids } }, { calleeId: { in: ids } }],
+    },
+  });
   await prisma.conversation.deleteMany({});
   await prisma.post.deleteMany({
     where: { authorId: { in: ids } },
@@ -291,6 +302,18 @@ export async function resetData(): Promise<void> {
     } while (cursor !== "0");
   }
   await redis.del("explore:trending", "explore:trending:tmp");
+  let callCursor = "0";
+  do {
+    const [nextCursor, keys] = await redis.scan(
+      callCursor,
+      "MATCH",
+      "call:*",
+      "COUNT",
+      100
+    );
+    callCursor = nextCursor;
+    if (keys.length > 0) await redis.del(...keys);
+  } while (callCursor !== "0");
 }
 
 export async function closeSmokeResources(): Promise<void> {
@@ -299,6 +322,8 @@ export async function closeSmokeResources(): Promise<void> {
       smokeQueues.notificationQueue.close(),
       smokeQueues.mediaQueue.close(),
       smokeQueues.maintenanceQueue.close(),
+      smokeQueues.pushQueue.close(),
+      smokeQueues.callsQueue.close(),
     ]);
     await smokeQueues.bullRedis.quit();
     smokeQueues = null;
@@ -330,6 +355,16 @@ export async function socketClient(
       reconnection: false,
     }
   );
+  await new Promise<void>((resolve, reject) => {
+    const timeout = setTimeout(
+      () => reject(new Error("Timed out waiting for socket ready.")),
+      5000
+    );
+    socket.once("ready", () => {
+      clearTimeout(timeout);
+      resolve();
+    });
+  });
 
   return {
     socket,
@@ -337,7 +372,7 @@ export async function socketClient(
       return new Promise<T>((resolve, reject) => {
         const timeout = setTimeout(
           () => reject(new Error(`Timed out waiting for socket event "${event}".`)),
-          5000
+          8000
         );
         socket.once(event, (value: T) => {
           clearTimeout(timeout);

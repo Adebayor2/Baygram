@@ -69,4 +69,10 @@ export const env = {
   cloudinaryApiSecret: requiredEnv("CLOUDINARY_API_SECRET"),
   clientOrigin: process.env.CLIENT_ORIGIN ?? "http://localhost:3000",
   instanceId: process.env.INSTANCE_ID ?? "local",
+  vapidPublicKey: process.env.VAPID_PUBLIC_KEY ?? "",
+  vapidPrivateKey: process.env.VAPID_PRIVATE_KEY ?? "",
+  vapidSubject: process.env.VAPID_SUBJECT ?? "mailto:you@example.com",
+  stunUrl: process.env.STUN_URL ?? "stun:stun.l.google.com:19302",
+  turnUrl: process.env.TURN_URL ?? "",
+  turnSecret: process.env.TURN_SECRET ?? "",
 };

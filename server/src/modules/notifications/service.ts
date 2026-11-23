@@ -6,6 +6,7 @@ import { badUserInput, forbidden, notFound } from "../../graphql/errors.js";
 import { clampFirst, decodeCursor, encodeCursor } from "../../lib/cursor.js";
 import { emitToUser } from "../../realtime/emit.js";
 import { notificationQueue } from "../../config/queues.js";
+import { queuePush } from "../push/service.js";
 
 export interface NotifyInput {
   type: NotificationType;
@@ -13,6 +14,29 @@ export interface NotifyInput {
   actorId: string;
   postId?: string;
   commentId?: string;
+}
+
+export function notificationPushPayload(
+  input: NotifyInput,
+  actor: { username: string; avatarUrl: string | null }
+) {
+  const title =
+    input.type === "LIKE"
+      ? `${actor.username} liked your post`
+      : input.type === "FOLLOW"
+        ? `${actor.username} started following you`
+        : input.type === "COMMENT"
+          ? `${actor.username} commented on your post`
+          : input.type === "FOLLOW_REQUEST"
+            ? `${actor.username} requested to follow you`
+            : `${actor.username} sent a notification`;
+  return {
+    title,
+    body: title,
+    url: input.postId ? `/posts/${input.postId}` : `/profiles/${actor.username}`,
+    icon: actor.avatarUrl ?? "",
+    tag: `${input.type}:${input.postId ?? ""}:${input.actorId}`,
+  };
 }
 
 function unreadKey(userId: string): string {
@@ -98,6 +122,12 @@ export async function processNotificationJob(input: NotifyInput): Promise<void> 
     createdAt: notification.createdAt.toISOString(),
   });
   await emitToUser(input.recipientId, "notification:unread", { count });
+  if (actor) {
+    await queuePush(
+      input.recipientId,
+      notificationPushPayload(input, actor)
+    );
+  }
 }
 
 export async function removeNotifications(

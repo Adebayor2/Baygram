@@ -1,0 +1,121 @@
+<!doctype html>
+<html>
+  <body>
+    <h1>BayGram Call Test</h1>
+    <input id="token" type="password" placeholder="Bearer token">
+    <button id="connect">Connect</button>
+    <input id="username" placeholder="Username">
+    <button id="audio">Audio</button>
+    <button id="video">Video</button>
+    <div id="incoming" hidden>
+      <span id="incomingText"></span>
+      <button id="accept">Accept</button>
+      <button id="reject">Reject</button>
+    </div>
+    <button id="end">End</button>
+    <video id="local" autoplay muted playsinline></video>
+    <video id="remote" autoplay playsinline></video>
+    <script src="/socket.io/socket.io.js"></script>
+    <script>
+      let socket, pc, localStream, callId, iceServers = [];
+      const localVideo = document.getElementById("local");
+      const remoteVideo = document.getElementById("remote");
+
+      async function loadIce() {
+        const response = await fetch("http://localhost:4000/graphql", {
+          method: "POST",
+          headers: {
+            "content-type": "application/json",
+            authorization: "Bearer " + document.getElementById("token").value.trim()
+          },
+          body: JSON.stringify({ query: "{ iceServers { urls username credential } }" })
+        });
+        const result = await response.json();
+        iceServers = result.data.iceServers;
+      }
+
+      async function startMedia(kind) {
+        localStream = await navigator.mediaDevices.getUserMedia({
+          audio: true,
+          video: kind === "VIDEO"
+        });
+        localVideo.srcObject = localStream;
+      }
+
+      function createPeer() {
+        pc = new RTCPeerConnection({ iceServers });
+        pc.ontrack = (event) => { remoteVideo.srcObject = event.streams[0]; };
+        pc.onicecandidate = (event) => {
+          if (event.candidate) {
+            socket.emit("webrtc:ice", { callId, data: event.candidate });
+          }
+        };
+        for (const track of localStream.getTracks()) pc.addTrack(track, localStream);
+      }
+
+      document.getElementById("connect").onclick = async () => {
+        await loadIce();
+        socket = io("http://localhost:4000", {
+          auth: { token: document.getElementById("token").value.trim() }
+        });
+        socket.on("call:incoming", async (payload) => {
+          callId = payload.callId;
+          document.getElementById("incomingText").textContent =
+            "Incoming " + payload.type + " call";
+          document.getElementById("incoming").hidden = false;
+        });
+        socket.on("call:accepted", async () => {
+          createPeer();
+          const offer = await pc.createOffer();
+          await pc.setLocalDescription(offer);
+          socket.emit("webrtc:offer", { callId, data: offer });
+        });
+        socket.on("webrtc:offer", async (payload) => {
+          callId = payload.callId;
+          createPeer();
+          await pc.setRemoteDescription(payload.data);
+          const answer = await pc.createAnswer();
+          await pc.setLocalDescription(answer);
+          socket.emit("webrtc:answer", { callId, data: answer });
+        });
+        socket.on("webrtc:answer", async (payload) => {
+          await pc.setRemoteDescription(payload.data);
+        });
+        socket.on("webrtc:ice", async (payload) => {
+          if (pc) await pc.addIceCandidate(payload.data);
+        });
+        socket.on("call:ended", () => {
+          if (pc) pc.close();
+          pc = null;
+          if (localStream) {
+            localStream.getTracks().forEach((track) => track.stop());
+            localStream = null;
+          }
+        });
+      };
+
+      async function invite(type) {
+        await startMedia(type);
+        socket.emit("call:invite", {
+          toUsername: document.getElementById("username").value.trim(),
+          type
+        }, (ack) => {
+          if (ack.ok) callId = ack.callId;
+          else alert(ack.code);
+        });
+      }
+      document.getElementById("audio").onclick = () => invite("AUDIO");
+      document.getElementById("video").onclick = () => invite("VIDEO");
+      document.getElementById("accept").onclick = async () => {
+        await startMedia("VIDEO");
+        socket.emit("call:accept", { callId });
+        document.getElementById("incoming").hidden = true;
+      };
+      document.getElementById("reject").onclick = () => {
+        socket.emit("call:reject", { callId });
+        document.getElementById("incoming").hidden = true;
+      };
+      document.getElementById("end").onclick = () => socket.emit("call:end", { callId });
+    </script>
+  </body>
+</html>

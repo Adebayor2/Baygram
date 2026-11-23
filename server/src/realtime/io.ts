@@ -13,6 +13,15 @@ import {
   type SendMessageInput,
 } from "../modules/chat/service.js";
 import { registerLocalEmitter } from "./emit.js";
+import {
+  acceptCall,
+  cancelCall,
+  enqueueDisconnectCheck,
+  endCall,
+  inviteCall,
+  rejectCall,
+  relayWebRtc,
+} from "../modules/calls/service.js";
 
 let io: SocketIOServer | null = null;
 
@@ -86,6 +95,54 @@ export function initIO(httpServer: http.Server): SocketIOServer {
     });
 
     socket.on(
+      "call:invite",
+      async (
+        payload: { toUsername?: string; type?: "AUDIO" | "VIDEO"; ringTimeoutMs?: number },
+        acknowledgement?: (value: unknown) => void
+      ) => {
+        try {
+          if (!payload?.toUsername || (payload.type !== "AUDIO" && payload.type !== "VIDEO")) {
+            if (acknowledgement) acknowledgement({ ok: false, code: "BAD_USER_INPUT" });
+            return;
+          }
+          const callId = await inviteCall(userId, payload.toUsername, payload.type, payload.ringTimeoutMs);
+          if (acknowledgement) acknowledgement({ ok: true, callId });
+        } catch (error) {
+          const message =
+            error && typeof error === "object" && "message" in error
+              ? String((error as { message: unknown }).message)
+              : "";
+          let code = "BAD_USER_INPUT";
+          if (message === "User not found.") code = "NOT_FOUND";
+          else if (["BUSY", "ALREADY_IN_CALL", "RATE_LIMITED"].includes(message)) code = message;
+          else if (message === "Cannot call yourself." || message === "Calls are not allowed.") code = "FORBIDDEN";
+          if (acknowledgement) acknowledgement({ ok: false, code });
+          io?.to(`user:${userId}`).emit("call:failed", { code });
+        }
+      }
+    );
+
+    socket.on("call:accept", (payload: { callId?: string }) => {
+      if (payload?.callId) void acceptCall(userId, payload.callId);
+    });
+    socket.on("call:reject", (payload: { callId?: string }) => {
+      if (payload?.callId) void rejectCall(userId, payload.callId);
+    });
+    socket.on("call:cancel", (payload: { callId?: string }) => {
+      if (payload?.callId) void cancelCall(userId, payload.callId);
+    });
+    socket.on("call:end", (payload: { callId?: string }) => {
+      if (payload?.callId) void endCall(userId, payload.callId);
+    });
+    for (const eventName of ["webrtc:offer", "webrtc:answer", "webrtc:ice"] as const) {
+      socket.on(eventName, (payload: { callId?: string; data?: unknown }) => {
+        if (payload?.callId) {
+          void relayWebRtc(userId, payload.callId, eventName, payload.data);
+        }
+      });
+    }
+
+    socket.on(
       "message:send",
       async (
         input: SendMessageInput,
@@ -141,6 +198,7 @@ export function initIO(httpServer: http.Server): SocketIOServer {
             isTyping: eventName === "typing:start",
           });
         }
+
       });
     }
 
@@ -162,7 +220,36 @@ export function initIO(httpServer: http.Server): SocketIOServer {
     socket.on("disconnect", () => {
       clearInterval(heartbeat);
       if (expiryTimer) clearTimeout(expiryTimer);
-      void disconnectPresence(userId);
+      void (async () => {
+        await disconnectPresence(userId);
+        if (!(await redis.exists(`presence:conn:${userId}`))) {
+          let cursor = "0";
+          do {
+            const [next, keys] = await redis.scan(
+              cursor,
+              "MATCH",
+              "call:*",
+              "COUNT",
+              100
+            );
+            cursor = next;
+            for (const key of keys) {
+              if (!key.startsWith("call:")) continue;
+              const callId = key.slice("call:".length);
+              if (!callId || callId.startsWith("active:")) continue;
+              const callerId = await redis.hget(key, "callerId");
+              const calleeId = await redis.hget(key, "calleeId");
+              const status = await redis.hget(key, "status");
+              if (
+                status === "ACTIVE" &&
+                (callerId === userId || calleeId === userId)
+              ) {
+                await enqueueDisconnectCheck(callId, userId);
+              }
+            }
+          } while (cursor !== "0");
+        }
+      })();
     });
   });
 

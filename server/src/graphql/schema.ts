@@ -17,6 +17,12 @@ import { notificationTypeDefs } from "../modules/notifications/typeDefs.js";
 import { notificationResolvers } from "../modules/notifications/resolvers.js";
 import { chatTypeDefs } from "../modules/chat/typeDefs.js";
 import { chatResolvers } from "../modules/chat/resolvers.js";
+import { storyTypeDefs } from "../modules/stories/typeDefs.js";
+import { storyResolvers } from "../modules/stories/resolvers.js";
+import { pushTypeDefs } from "../modules/push/typeDefs.js";
+import { pushResolvers } from "../modules/push/resolvers.js";
+import { callTypeDefs } from "../modules/calls/typeDefs.js";
+import { callResolvers } from "../modules/calls/resolvers.js";
 
 export const typeDefs = [
   baseTypeDefs,
@@ -28,6 +34,9 @@ export const typeDefs = [
   searchTypeDefs,
   notificationTypeDefs,
   chatTypeDefs,
+  storyTypeDefs,
+  pushTypeDefs,
+  callTypeDefs,
 ].map((source) => parse(source));
 export const resolvers = [
   baseResolvers,
@@ -39,4 +48,7 @@ export const resolvers = [
   searchResolvers,
   notificationResolvers,
   chatResolvers,
+  storyResolvers,
+  pushResolvers,
+  callResolvers,
 ];

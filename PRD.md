@@ -236,11 +236,11 @@ If any item is missing or broken, tell the owner before continuing.
 - [x] F11 Socket.IO + Redis adapter + presence
 - [x] F12 Direct messages and group chat
 - [x] F13 Real-time notifications
-- [ ] F14 Background jobs (BullMQ) + Explore v2
-- [ ] F15 Stories
+- [x] F14 Background jobs (BullMQ) + Explore v2
+- [x] F15 Stories
 - [ ] F16 Reels (optional, ask the owner first)
-- [ ] F17 Web Push notifications
-- [ ] F18 Voice and video call signaling
+- [x] F17 Web Push notifications
+- [x] F18 Voice and video call signaling
 - [ ] F19 Security and reliability hardening
 - [ ] F20 Unit tests and CI
 - [ ] F21 Docker containerisation

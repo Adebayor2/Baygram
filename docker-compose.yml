@@ -7,6 +7,24 @@ services:
       - "6379:6379"
     volumes:
       - redisdata:/data
+  coturn:
+    image: coturn/coturn:4.6.2
+    restart: unless-stopped
+    command:
+      - --log-file=stdout
+      - --fingerprint
+      - --lt-cred-mech
+      - --use-auth-secret
+      - --static-auth-secret=${TURN_SECRET:-baygram-dev-turn-secret}
+      - --realm=social-app
+      - --listening-port=3478
+      - --relay-ip=0.0.0.0
+      - --min-port=49160
+      - --max-port=49200
+    ports:
+      - "3478:3478/udp"
+      - "3478:3478/tcp"
+      - "49160-49200:49160-49200/udp"
 
 volumes:
   redisdata:

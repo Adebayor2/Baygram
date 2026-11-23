@@ -1,5 +1,3 @@
-CREATE TYPE "MediaType" AS ENUM ('IMAGE', 'VIDEO');
-
 ALTER TABLE "profiles"
 ADD COLUMN "posts_count" INTEGER NOT NULL DEFAULT 0;
 
@@ -24,7 +22,7 @@ CREATE TABLE "post_media" (
     "width" INTEGER,
     "height" INTEGER,
     "duration_sec" DOUBLE PRECISION,
-    "position" INTEGER NOT NOT NULL,
+    "position" INTEGER NOT NULL,
 
     CONSTRAINT "post_media_pkey" PRIMARY KEY ("id")
 );
