@@ -10,7 +10,7 @@ export function decodeCursor(cursor: string): string {
   }
 
   const id = Buffer.from(cursor, "base64url").toString("utf8");
-  if (!id || encodeCursor(id) !== cursor) {
+  if (!id || /[\u0000-\u001f\u007f]/.test(id) || encodeCursor(id) !== cursor) {
     throw badUserInput("Invalid cursor.");
   }
   return id;

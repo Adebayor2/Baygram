@@ -75,4 +75,5 @@ export const env = {
   stunUrl: process.env.STUN_URL ?? "stun:stun.l.google.com:19302",
   turnUrl: process.env.TURN_URL ?? "",
   turnSecret: process.env.TURN_SECRET ?? "",
+  logLevel: process.env.LOG_LEVEL ?? "info",
 };

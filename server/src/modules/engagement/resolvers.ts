@@ -1,6 +1,7 @@
 import { requireUser } from "../../auth/requireUser.js";
 import type { AppContext } from "../../graphql/context.js";
 import { badUserInput } from "../../graphql/errors.js";
+import { rateLimit } from "../../lib/rateLimit.js";
 import {
   addComment,
   deleteComment,
@@ -56,6 +57,12 @@ export const engagementResolvers = {
       ctx: AppContext
     ) => {
       const user = requireUser(ctx);
+      await rateLimit({
+        scope: "likePost",
+        id: user.id,
+        limit: 60,
+        windowSec: 60,
+      });
       return likePost(user.id, args.postId);
     },
     unlikePost: async (
@@ -72,6 +79,12 @@ export const engagementResolvers = {
       ctx: AppContext
     ) => {
       const user = requireUser(ctx);
+      await rateLimit({
+        scope: "addComment",
+        id: user.id,
+        limit: 30,
+        windowSec: 60,
+      });
       if (!args.body || args.body.trim().length === 0) {
         throw badUserInput("Comment body must be between 1 and 500 characters.");
       }

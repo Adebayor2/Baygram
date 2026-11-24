@@ -355,24 +355,38 @@ export async function socketClient(
       reconnection: false,
     }
   );
+  const startupEvents = new Map<string, unknown>();
   await new Promise<void>((resolve, reject) => {
     const timeout = setTimeout(
-      () => reject(new Error("Timed out waiting for socket ready.")),
+      () => {
+        socket.disconnect();
+        reject(new Error("Timed out waiting for socket ready or connect_error."));
+      },
       5000
     );
-    socket.once("ready", () => {
+    const finish = (event: string, value: unknown) => {
+      startupEvents.set(event, value);
       clearTimeout(timeout);
       resolve();
-    });
+    };
+    socket.once("ready", (value: unknown) => finish("ready", value));
+    socket.once("connect_error", (error: Error) =>
+      finish("connect_error", error)
+    );
   });
 
   return {
     socket,
     once<T>(event: string): Promise<T> {
+      if (startupEvents.has(event)) {
+        const value = startupEvents.get(event) as T;
+        startupEvents.delete(event);
+        return Promise.resolve(value);
+      }
       return new Promise<T>((resolve, reject) => {
         const timeout = setTimeout(
           () => reject(new Error(`Timed out waiting for socket event "${event}".`)),
-          8000
+          30000
         );
         socket.once(event, (value: T) => {
           clearTimeout(timeout);

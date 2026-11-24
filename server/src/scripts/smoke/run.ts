@@ -36,6 +36,7 @@ async function main(): Promise<void> {
     }
 
     for (const script of scripts) {
+      console.log(`Running ${script}`);
       const loaded = (await import(
         pathToFileURL(join(folder, script)).href
       )) as SmokeModule;
@@ -44,6 +45,9 @@ async function main(): Promise<void> {
     }
   } finally {
     await closeSmokeResources();
+    // Smoke scripts close their clients explicitly; this also releases any
+    // keep-alive sockets left by fetch so the CLI returns its result promptly.
+    process.exit(process.exitCode ?? 0);
   }
 }
 

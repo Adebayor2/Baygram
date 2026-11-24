@@ -12,7 +12,7 @@ export function extractHashtags(text: string | null | undefined): string[] {
 export function extractMentions(text: string | null | undefined): string[] {
   if (!text) return [];
   const names = new Set<string>();
-  const matches = text.matchAll(/(?:^|\s)@([a-z0-9_]{3,20})/g);
+  const matches = text.matchAll(/(?:^|\s)@([a-z0-9_]{3,20})(?![a-z0-9_])/g);
   for (const match of matches) {
     names.add(match[1].toLowerCase());
     if (names.size >= 20) break;

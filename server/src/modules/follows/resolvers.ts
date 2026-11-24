@@ -1,5 +1,6 @@
 import { requireUser } from "../../auth/requireUser.js";
 import type { AppContext } from "../../graphql/context.js";
+import { rateLimit } from "../../lib/rateLimit.js";
 import {
   acceptFollowRequest,
   blockProfile,
@@ -45,11 +46,20 @@ export const followResolvers = {
   },
 
   Mutation: {
-    follow: (
+    follow: async (
       _parent: unknown,
       args: { username: string },
       ctx: AppContext
-    ) => followProfile(requireUser(ctx).id, args.username),
+    ) => {
+      const user = requireUser(ctx);
+      await rateLimit({
+        scope: "follow",
+        id: user.id,
+        limit: 60,
+        windowSec: 60,
+      });
+      return followProfile(user.id, args.username);
+    },
     unfollow: (
       _parent: unknown,
       args: { username: string },

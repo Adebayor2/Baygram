@@ -241,8 +241,8 @@ If any item is missing or broken, tell the owner before continuing.
 - [ ] F16 Reels (optional, ask the owner first)
 - [x] F17 Web Push notifications
 - [x] F18 Voice and video call signaling
-- [ ] F19 Security and reliability hardening
-- [ ] F20 Unit tests and CI
+- [x] F19 Security and reliability hardening
+  - [x] F20 Unit tests and CI
 - [ ] F21 Docker containerisation
 - [ ] F22 Scaling lab (load balancer, replicas) + architecture doc
 

@@ -1,6 +1,7 @@
 import { requireUser } from "../../auth/requireUser.js";
 import type { AppContext } from "../../graphql/context.js";
 import { badUserInput } from "../../graphql/errors.js";
+import { rateLimit } from "../../lib/rateLimit.js";
 import { createPostInputSchema } from "../../lib/validators.js";
 import {
   createPost,
@@ -66,6 +67,12 @@ export const postResolvers = {
       ctx: AppContext
     ) => {
       const user = requireUser(ctx);
+      await rateLimit({
+        scope: "createPost",
+        id: user.id,
+        limit: 10,
+        windowSec: 60,
+      });
       return createPost(user.id, parsePostInput(args));
     },
     updatePostCaption: async (

@@ -3,6 +3,7 @@ import { prisma } from "../../config/db.js";
 import { redis } from "../../config/redis.js";
 import { badUserInput, forbidden, notFound } from "../../graphql/errors.js";
 import { clampFirst, decodeCursor, encodeCursor } from "../../lib/cursor.js";
+import { rateLimit } from "../../lib/rateLimit.js";
 import { describeOwnedMedia, type MediaType } from "../media/service.js";
 import { getIO } from "../../realtime/io.js";
 
@@ -140,6 +141,12 @@ export async function sendMessage(
   senderId: string,
   input: SendMessageInput
 ): Promise<Message> {
+  await rateLimit({
+    scope: "sendMessage",
+    id: senderId,
+    limit: 30,
+    windowSec: 10,
+  });
   await ensureMember(input.conversationId, senderId);
   const membersBeforeSend = await prisma.conversationMember.findMany({
     where: { conversationId: input.conversationId },

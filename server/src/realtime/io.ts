@@ -13,6 +13,7 @@ import {
   type SendMessageInput,
 } from "../modules/chat/service.js";
 import { registerLocalEmitter } from "./emit.js";
+import { rateLimit } from "../lib/rateLimit.js";
 import {
   acceptCall,
   cancelCall,
@@ -177,6 +178,16 @@ export function initIO(httpServer: http.Server): SocketIOServer {
     for (const eventName of ["typing:start", "typing:stop"] as const) {
       socket.on(eventName, async (payload: { conversationId?: string }) => {
         if (!payload?.conversationId) return;
+        try {
+          await rateLimit({
+            scope: "typing",
+            id: userId,
+            limit: 10,
+            windowSec: 5,
+          });
+        } catch {
+          return;
+        }
         const member = await prisma.conversationMember.findUnique({
           where: {
             conversationId_userId: {

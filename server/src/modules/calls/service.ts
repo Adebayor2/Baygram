@@ -1,4 +1,4 @@
-import { createHmac, randomUUID } from "node:crypto";
+import { randomUUID } from "node:crypto";
 import { CallStatus, Prisma } from "@prisma/client";
 import { prisma } from "../../config/db.js";
 import { redis } from "../../config/redis.js";
@@ -7,6 +7,8 @@ import { callsQueue } from "../../config/queues.js";
 import { forbidden, notFound } from "../../graphql/errors.js";
 import { badUserInput } from "../../graphql/errors.js";
 import { clampFirst, decodeCursor, encodeCursor } from "../../lib/cursor.js";
+import { rateLimit } from "../../lib/rateLimit.js";
+import { createTurnCredentials } from "../../lib/turn.js";
 import { emitToUser } from "../../realtime/emit.js";
 import { notifyUser } from "../notifications/service.js";
 
@@ -103,11 +105,16 @@ export async function inviteCall(
     throw forbidden("BUSY");
   }
 
-  const minute = Math.floor(Date.now() / 60000);
-  const key = `rl:call:${callerId}:${minute}`;
-  const count = await redis.incr(key);
-  if (count === 1) await redis.expire(key, 60);
-  if (count > 5) throw forbidden("RATE_LIMITED");
+  try {
+    await rateLimit({
+      scope: "call:invite",
+      id: callerId,
+      limit: 5,
+      windowSec: 60,
+    });
+  } catch {
+    throw forbidden("RATE_LIMITED");
+  }
 
   const callId = randomUUID();
   const startedAt = new Date().toISOString();
@@ -310,11 +317,10 @@ export async function getCallHistory(
 export function getIceServers(userId: string) {
   const stun = { urls: [env.stunUrl], username: null, credential: null };
   if (!env.turnUrl || !env.turnSecret) return [stun];
-  const expiry = Math.floor(Date.now() / 1000) + 3600;
-  const username = `${expiry}:${userId}`;
-  const credential = createHmac("sha1", env.turnSecret)
-    .update(username)
-    .digest("base64");
+  const { username, credential } = createTurnCredentials(
+    userId,
+    env.turnSecret
+  );
   return [
     stun,
     { urls: env.turnUrl.split(",").map((value) => value.trim()).filter(Boolean), username, credential },
